@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import misc
@@ -36,16 +38,27 @@ class Dataset(object):
         dataset_list = list() # Complete list stored here
         #  The list is stored in the format (file name, file label) where
         #  file label is the category which the file belongs to
+        max_imgs = 1000
+        idx = 0
+
         for label in label_names:
             data_class_path = os.path.join(self.__PATH, label) # create path to sub-dir
             # Append all the files in sub-dir to the main list
+            # print("Loading Image from %s", label)
+            idx = 0
+            # print(label)
             for img in os.listdir(data_class_path):
+                if(idx > max_imgs):
+                    break
+                else:
+                    idx +=1
+                    progress(idx, max_imgs, status= 'Loading Images from ' + label)
                 if (img[0] != '.'):
                     dataset_list.append((img,label))
-
         return dataset_list # return the complete list
 
     def __prepare_dataset(self,dataset_list, num_train):
+        print("Preparing dataset")
         # This method separates the complete data list into respective
         #  lists of training anf testing data
 
@@ -57,6 +70,7 @@ class Dataset(object):
         return train_list, test_list # Return training and testing lists
 
     def __read_img_from_list(self, dataset_list, type):
+        print("Reading images from list")
         #  This method reads the image from the disk as per the provided list
         #  Try making a csv file
         # Get the labels
@@ -199,3 +213,12 @@ if __name__ == '__main__':
     #     print(Y_train)
     #     plt.imshow(X_train[0,:].reshape(img_size))
     #     plt.show()
+def progress(count, total, status=''):
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+    sys.stdout.flush() # As suggested by Rom Ruben (see: http://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console/27871113#comment50529068_27871113)

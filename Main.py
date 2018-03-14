@@ -9,7 +9,7 @@ import tensorflow as tf
 # import tensorflowvisu
 from Dataset import Dataset
 
-PATH = 'dataset-resized'
+PATH = 'dataset'
 num_train = 2100
 img_size = (100,100,3)
 img_len = img_size[0]*img_size[1]*img_size[2]
@@ -17,6 +17,7 @@ batch_size = 50
 num_epochs = 20
 
 data_set = Dataset(PATH, num_train, img_size)
+print('Here')
 X_test, Y_test = data_set.get_test_data()
 # print(X_test.shape,Y_test.shape)
 X = tf.placeholder(tf.float32, [None, img_size[0], img_size[1], img_size[2]])
