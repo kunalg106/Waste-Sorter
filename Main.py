@@ -1,47 +1,33 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-
-# from scipy import misc
-# from skimage.transform import resize
 from random import shuffle  # Set seed
 import tensorflow as tf
-# import tensorflowvisu
 from Dataset import Dataset
 
-PATH = 'dataset'
-num_train = 2100
-img_size = (100,100,3)
-img_len = img_size[0]*img_size[1]*img_size[2]
-batch_size = 50
-num_epochs = 20
+PATHConfu = 'datasetConfu'
+PATHTest = 'datasetTest'
+PATHTrain = 'datasetTrain'
+imgSize = (100,100,3) # standard image size used for training
 
-data_set = Dataset(PATH, num_train, img_size)
-print('Here')
-X_test, Y_test = data_set.get_test_data()
-# print(X_test.shape,Y_test.shape)
-X = tf.placeholder(tf.float32, [None, img_size[0], img_size[1], img_size[2]])
-Y_ = tf.placeholder(tf.float32, [None, 6])
+oneHotCode =   {'cardboard': [1,0,0,0,0], \
+                'plastic'  : [0,1,0,0,0], \
+                'metal'    : [0,0,1,0,0], \
+                'paper'    : [0,0,0,1,0], \
+                'glass'    : [0,0,0,0,1]}
+
+batchSize = 40
+numEpochs = 250
+
+dataset = Dataset(PATHTrain, PATHTest, PATHConfu, imgSize)
+XTest, YTest = dataset.getTestData()
+
+X = tf.placeholder(tf.float32, [None, imgSize[0], imgSize[1], imgSize[2]], name = "X")
+Y_ = tf.placeholder(tf.float32, [None, 5], name = "Y_")
 lr = tf.placeholder(tf.float32)
-# Probability of keeping a node during dropout = 1.0 at test time (no dropout) and 0.75 at training time
 pkeep = tf.placeholder(tf.float32)
-# # five layers and their number of neurons (tha last layer has 10 softmax neurons)
-# L = 200
-# M = 100
-# N = 60
-# O = 30
-# # Weights initialised with small random values between -0.2 and +0.2
-# # When using RELUs, make sure biases are initialised with small *positive* values for example 0.1 = tf.ones([K])/10
-# W1 = tf.Variable(tf.truncated_normal([img_len, L], stddev=0.1))  # 784 = 28 * 28
-# B1 = tf.Variable(tf.ones([L])/10)
-# W2 = tf.Variable(tf.truncated_normal([L, M], stddev=0.1))
-# B2 = tf.Variable(tf.ones([M])/10)
-# W3 = tf.Variable(tf.truncated_normal([M, N], stddev=0.1))
-# B3 = tf.Variable(tf.ones([N])/10)
-# W4 = tf.Variable(tf.truncated_normal([N, O], stddev=0.1))
-# B4 = tf.Variable(tf.ones([O])/10)
-# W5 = tf.Variable(tf.truncated_normal([O, 6], stddev=0.1))
-# B5 = tf.Variable(tf.ones([6])/10)
+
+
 
 # three convolutional layers with their channel counts, and a
 # fully connected layer (tha last layer has 10 softmax neurons)
@@ -50,88 +36,173 @@ L = 8  # second convolutional layer output depth
 M = 12  # third convolutional layer
 N = 200  # fully connected layer
 
-W1 = tf.Variable(tf.truncated_normal([6, 6, 3, K], stddev=0.1))  # 5x5 patch, 1 input channel, K output channels
-B1 = tf.Variable(tf.ones([K])/10) # 97x97x4
-W2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
-B2 = tf.Variable(tf.ones([L])/10) #48x48x8
-W3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
-B3 = tf.Variable(tf.ones([M])/10) #24x24x12
+W1 = tf.Variable(tf.truncated_normal([6, 6, 3, K], stddev=0.1), name = "W1")  # 5x5 patch, 1 input channel, K output channels
+B1 = tf.Variable(tf.ones([K])/10, name = "B1") # 97x97x4
+W2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1), name = "W2")
+B2 = tf.Variable(tf.ones([L])/10, name = "B2") #48x48x8
+W3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1), name = "W3")
+B3 = tf.Variable(tf.ones([M])/10, name = "B3") #24x24x12
 
-W4 = tf.Variable(tf.truncated_normal([25 * 25 * M, N], stddev=0.1))
-B4 = tf.Variable(tf.ones([N])/10)
-W5 = tf.Variable(tf.truncated_normal([N, 6], stddev=0.1))
-B5 = tf.Variable(tf.ones([6])/10)
-
+W4 = tf.Variable(tf.truncated_normal([25 * 25 * M, N], stddev=0.1), name = "W4")
+B4 = tf.Variable(tf.ones([N])/10, name = "B4")
+W5 = tf.Variable(tf.truncated_normal([N, 5], stddev=0.1), name = "W5")
+B5 = tf.Variable(tf.ones([5])/10, name = "B5")
 
 # The model
-stride = 1  # output is 28x28
-Y1 = tf.nn.relu(tf.nn.conv2d(X, W1, strides=[1, stride, stride, 1], padding='SAME') + B1)
-stride = 2  # output is 14x14
-Y2 = tf.nn.relu(tf.nn.conv2d(Y1, W2, strides=[1, stride, stride, 1], padding='SAME') + B2)
-stride = 2  # output is 7x7
-Y3 = tf.nn.relu(tf.nn.conv2d(Y2, W3, strides=[1, stride, stride, 1], padding='SAME') + B3)
+with tf.name_scope("layer1"):
+    stride = 1  # output is 28x28
+    X = tf.nn.dropout(X, pkeep)
+    Y1 = tf.nn.relu(tf.nn.conv2d(X, W1, strides=[1, stride, stride, 1], padding='SAME') + B1)
+with tf.name_scope("layer2"):
+    stride = 2  # output is 14x14
+    Y1 = tf.nn.dropout(Y1, pkeep)
+    Y2 = tf.nn.relu(tf.nn.conv2d(Y1, W2, strides=[1, stride, stride, 1], padding='SAME') + B2)
+with tf.name_scope("layer3"):
+    stride = 2  # output is 7x7
+    Y2 = tf.nn.dropout(Y2,pkeep)
+    Y3 = tf.nn.relu(tf.nn.conv2d(Y2, W3, strides=[1, stride, stride, 1], padding='SAME') + B3)
 
 # reshape the output from the third convolution for the fully connected layer
 YY = tf.reshape(Y3, shape=[-1, 25 * 25 * M])
 
-Y4 = tf.nn.relu(tf.matmul(YY, W4) + B4)
-YY4 = tf.nn.dropout(Y4, pkeep)
-Ylogits = tf.matmul(YY4, W5) + B5
-Y = tf.nn.softmax(Ylogits)
+with tf.name_scope("layer4"):
+    YY = tf.nn.dropout(YY, pkeep)
+    Y4 = tf.nn.relu(tf.matmul(YY, W4) + B4)
+with tf.name_scope("layer5"):
+    YY4 = tf.nn.dropout(Y4, pkeep)
+    Ylogits = tf.matmul(YY4, W5) + B5
+    Y = tf.nn.softmax(Ylogits)
+
+tf.summary.histogram("W1", W1)
+tf.summary.histogram("W2", W2)
+tf.summary.histogram("W3", W3)
+tf.summary.histogram("W4", W4)
+tf.summary.histogram("W5", W5)
+
+tf.summary.histogram("B1", B1)
+tf.summary.histogram("B2", B2)
+tf.summary.histogram("B3", B3)
+tf.summary.histogram("B4", B4)
+tf.summary.histogram("B5", B5)
+
+with tf.name_scope("cost"):
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits = Ylogits, labels = Y_)
+    cross_entropy = tf.reduce_mean(cross_entropy)*100
+    tf.summary.scalar("cost", cross_entropy)
+
+with tf.name_scope("accuracy"):
+    correct_prediction = tf.equal(tf.argmax(Y,1), tf.argmax(Y_,1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    tf.summary.scalar("accuracy", accuracy)
+
+predictionCard2Card = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['cardboard']), tf.argmax(Y,1)), tf.float32))
+predictionCard2Plastic = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['plastic']), tf.argmax(Y,1)), tf.float32))
+predictionCard2Metal = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['metal']), tf.argmax(Y,1)), tf.float32))
+predictionCard2Paper = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['paper']), tf.argmax(Y,1)), tf.float32))
+predictionCard2Glass = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['glass']), tf.argmax(Y,1)), tf.float32))
+
+predictionPlastic2Card = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['cardboard']), tf.argmax(Y,1)), tf.float32))
+predictionPlastic2Plastic = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['plastic']), tf.argmax(Y,1)), tf.float32))
+predictionPlastic2Metal = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['metal']), tf.argmax(Y,1)), tf.float32))
+predictionPlastic2Paper = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['paper']), tf.argmax(Y,1)), tf.float32))
+predictionPlastic2Glass = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['glass']), tf.argmax(Y,1)), tf.float32))
+
+predictionMetal2Card = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['cardboard']), tf.argmax(Y,1)), tf.float32))
+predictionMetal2Plastic = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['plastic']), tf.argmax(Y,1)), tf.float32))
+predictionMetal2Metal = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['metal']), tf.argmax(Y,1)), tf.float32))
+predictionMetal2Paper = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['paper']), tf.argmax(Y,1)), tf.float32))
+predictionMetal2Glass = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['glass']), tf.argmax(Y,1)), tf.float32))
+
+predictionPaper2Card = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['cardboard']), tf.argmax(Y,1)), tf.float32))
+predictionPaper2Plastic = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['plastic']), tf.argmax(Y,1)), tf.float32))
+predictionPaper2Metal = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['metal']), tf.argmax(Y,1)), tf.float32))
+predictionPaper2Paper = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['paper']), tf.argmax(Y,1)), tf.float32))
+predictionPaper2Glass = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['glass']), tf.argmax(Y,1)), tf.float32))
 
 
-# XX = tf.reshape(X, [-1, img_len])
-#
-# Y1 = tf.nn.relu(tf.matmul(XX, W1) + B1)
-# Y2 = tf.nn.relu(tf.matmul(Y1, W2) + B2)
-# Y3 = tf.nn.relu(tf.matmul(Y2, W3) + B3)
-# Y4 = tf.nn.relu(tf.matmul(Y3, W4) + B4)
-# Ylogits = tf.matmul(Y4, W5) + B5
-# Y = tf.nn.softmax(Ylogits)
-
-# Ylogits = tf.matmul(XX, W) + b
-#
-# Y = tf.nn.softmax(Ylogits)
-
-cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits = Ylogits, labels = Y_)
-cross_entropy = tf.reduce_mean(cross_entropy)*100
-
-# cross_entropy = -tf.reduce_mean(Y_*tf.log(Y))*1000.0
-
-correct_prediction = tf.equal(tf.argmax(Y,1), tf.argmax(Y_,1))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+predictionGlass2Card = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['cardboard']), tf.argmax(Y,1)), tf.float32))
+predictionGlass2Plastic = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['plastic']), tf.argmax(Y,1)), tf.float32))
+predictionGlass2Metal = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['metal']), tf.argmax(Y,1)), tf.float32))
+predictionGlass2Paper = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['paper']), tf.argmax(Y,1)), tf.float32))
+predictionGlass2Glass = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(oneHotCode['glass']), tf.argmax(Y,1)), tf.float32))
 
 train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
 
-# batch_X, batch_Y = data_set.get_next_batch(50)
-# print(batch_X.size, batch_Y.size)
-
 init = tf.global_variables_initializer()
-sess = tf.Session()
-sess.run(init)
 
-def train_model(num_epochs, batch_size):
-    epoch = 1
-    i = 0
-    print("Starting epoch :", epoch)
-    while (epoch <= num_epochs):
-        if(data_set.is_end_of_list(batch_size)):
-            epoch +=1
-            i += 1
-            data_set.reset_train_index()
-            print("Training set exhausted. Starting epoch :", epoch)
+with tf.Session() as sess:
+    writer = tf.summary.FileWriter("./logs/nn_logs", sess.graph)
 
-        # learning rate decay
-        max_learning_rate = 0.003
-        min_learning_rate = 0.0001
-        decay_speed = 20.0
-        learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i/decay_speed)
+    merged = tf.summary.merge_all()
+    sess.run(init)
 
-        batch_X, batch_Y = data_set.get_next_batch(batch_size)
-        acc_train, cross_train = sess.run([accuracy, cross_entropy], feed_dict = {X: batch_X, Y_: batch_Y, pkeep: 1.0})
-        nun= sess.run(train_step, feed_dict = {X: batch_X, Y_: batch_Y, lr :learning_rate, pkeep: 0.75})
-        acc_test, cross_test = sess.run([accuracy, cross_entropy], feed_dict = {X: X_test, Y_: Y_test, pkeep: 1.0})
-        print("Train Accuracy: ", "%0.2f" % acc_train,"Train cross_entropy: ","%0.2f" %  cross_train, \
-        "Test Accuracy: ", "%0.2f" %  acc_test, "Test cross_entropy: ", "%0.2f" % cross_test, "Learning rate: ", learning_rate)
-        # tf.Print(X,[X])
-train_model(num_epochs, batch_size)
+    def train_model(numEpochs, batchSize):
+        epoch = 1
+        i = 0
+        idx = 0
+        # Confu_set = data_set.get_confusion_img()
+
+        print("Starting epoch :", epoch)
+        while (epoch <= numEpochs):
+            # if(data_set.is_end_of_list(batch_size)):
+            if(dataset.hasNext(batchSize) == False):
+                epoch +=1
+                i += 1
+                # data_set.reset_train_index()
+                dataset.resetTrainIdx()
+                print("Training set exhausted. Starting epoch :", epoch)
+
+            # learning rate decay
+            max_learning_rate = 0.0003
+            min_learning_rate = 0.0001
+            decay_speed = 200.0
+            learning_rate = min_learning_rate + (max_learning_rate - min_learning_rate) * math.exp(-i/decay_speed)
+
+            # batch_X, batch_Y = data_set.get_next_batch(batch_size)
+            XTrain, YTrain = dataset.getNextBatch(batchSize)
+
+            accTrain, crossTrain = sess.run([accuracy, cross_entropy], feed_dict = {X: XTrain, Y_: YTrain, pkeep: 1.0})
+
+            nun = sess.run(train_step, feed_dict = {X: XTrain, Y_: YTrain, lr :learning_rate, pkeep: 0.6})
+
+            if(idx %10 == 0):
+                summaryTest, accTest, crossTest = sess.run([merged, accuracy, cross_entropy], feed_dict = {X: XTest, Y_: YTest, pkeep: 1.0})
+                writer.add_summary(summaryTest, idx)
+                print("Train Accuracy: ", "%0.2f" % accTrain,"Train cross_entropy: ","%0.2f" %  crossTrain, \
+                "Test Accuracy: ", "%0.2f" %  accTest, "Test cross_entropy: ", "%0.2f" % crossTest, "Learning rate: ", "%0.5f" % learning_rate)
+
+                XConfu, YConfu = dataset.getConfusionImg('cardboard')
+                predCard2Card, predCard2Plastic, predCard2Metal, predCard2Paper, predCard2Glass = \
+                sess.run([predictionCard2Card, predictionCard2Plastic, predictionCard2Metal, predictionCard2Paper, predictionCard2Glass], \
+                feed_dict = {X: XConfu, pkeep: 1.0})
+
+                XConfu, YConfu = dataset.getConfusionImg('plastic')
+                predPlastic2Card, predPlastic2Plastic, predPlastic2Metal, predPlastic2Paper, predPlastic2Glass = \
+                sess.run([predictionPlastic2Card, predictionPlastic2Plastic, predictionPlastic2Metal, predictionPlastic2Paper, predictionPlastic2Glass], \
+                feed_dict = {X: XConfu, pkeep: 1.0})
+
+                XConfu, YConfu = dataset.getConfusionImg('metal')
+                predMetal2Card, predMetal2Plastic, predMetal2Metal, predMetal2Paper, predMetal2Glass = \
+                sess.run([predictionMetal2Card, predictionMetal2Plastic, predictionMetal2Metal, predictionMetal2Paper, predictionMetal2Glass], \
+                feed_dict = {X: XConfu, pkeep: 1.0})
+
+                XConfu, YConfu = dataset.getConfusionImg('paper')
+                predPaper2Card, predPaper2Plastic, predPaper2Metal, predPaper2Paper, predPaper2Glass = \
+                sess.run([predictionPaper2Card, predictionPaper2Plastic, predictionPaper2Metal, predictionPaper2Paper, predictionPaper2Glass], \
+                feed_dict = {X: XConfu, pkeep: 1.0})
+
+                XConfu, YConfu = dataset.getConfusionImg('glass')
+                predGlass2Card, predGlass2Plastic, predGlass2Metal, predGlass2Paper, predGlass2Glass = \
+                sess.run([predictionGlass2Card, predictionGlass2Plastic, predictionGlass2Metal, predictionGlass2Paper, predictionGlass2Glass], \
+                feed_dict = {X: XConfu, pkeep: 1.0})
+
+                print("Confusion Matrix..........................................")
+                print('cardboard', ["%0.2f" % predCard2Card,  "%0.2f" %   predCard2Plastic,  "%0.2f" %   predCard2Metal,  "%0.2f" %   predCard2Paper,  "%0.2f" %   predCard2Glass])
+                print('plastic  ', ["%0.2f" % predPlastic2Card,"%0.2f" %  predPlastic2Plastic,"%0.2f" %  predPlastic2Metal, "%0.2f" % predPlastic2Paper,"%0.2f" %  predPlastic2Glass])
+                print('metal    ', ["%0.2f" % predMetal2Card,  "%0.2f" %  predMetal2Plastic,  "%0.2f" %  predMetal2Metal, "%0.2f" %   predMetal2Paper, "%0.2f" %   predMetal2Glass])
+                print('paper    ', ["%0.2f" % predPaper2Card,  "%0.2f" %  predPaper2Plastic,  "%0.2f" %  predPaper2Metal, "%0.2f" %   predPaper2Paper, "%0.2f" %   predPaper2Glass])
+                print('glass    ', ["%0.2f" % predGlass2Card,  "%0.2f" %  predGlass2Plastic,  "%0.2f" %  predGlass2Metal, "%0.2f" %   predGlass2Paper, "%0.2f" %   predGlass2Glass])
+
+            idx +=1
+
+    train_model(numEpochs, batchSize)
